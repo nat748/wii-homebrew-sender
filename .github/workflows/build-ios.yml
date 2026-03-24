@@ -29,8 +29,10 @@ jobs:
       - name: Find workspace and scheme
         id: find
         run: |
-          WORKSPACE=$(ls ios/*.xcworkspace -d | head -1)
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c "import sys,json; print(json.load(sys.stdin)['workspace']['schemes'][0])")
+          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
+          echo "Found workspace: $WORKSPACE"
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | grep -A100 "Schemes:" | tail -n +2 | head -1 | xargs)
+          echo "Found scheme: $SCHEME"
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
 
