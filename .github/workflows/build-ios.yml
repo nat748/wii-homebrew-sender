@@ -29,12 +29,14 @@ jobs:
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
-      - name: Patch Podfile for Xcode 16 compatibility
+      - name: Patch Podfile for Swift concurrency fix
         run: |
-          # Inject into existing post_install block
+          # Use OTHER_SWIFT_FLAGS to directly pass compiler flag that disables strict concurrency
+          # This is more reliable than SWIFT_STRICT_CONCURRENCY build setting
           sed -i '' 's/post_install do |installer|/post_install do |installer|\
             installer.pods_project.targets.each do |target|\
               target.build_configurations.each do |config|\
+                config.build_settings["OTHER_SWIFT_FLAGS"] = "$(inherited) -Xfrontend -strict-concurrency=minimal"\
                 config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"\
                 config.build_settings["SWIFT_TREAT_WARNINGS_AS_ERRORS"] = "NO"\
                 config.build_settings["GCC_TREAT_WARNINGS_AS_ERRORS"] = "NO"\
@@ -47,34 +49,11 @@ jobs:
       - name: Discover project
         id: find
         run: |
-          ls -la ios/*.xcworkspace
           WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
           echo "Using workspace=$WORKSPACE scheme=$SCHEME"
-
-      - name: Fix Swift concurrency errors in all pods
-        run: |
-          # Force Swift language version 5 and disable strict concurrency on ALL pod targets
-          ruby << 'RUBY'
-          require 'xcodeproj'
-          project = Xcodeproj::Project.open('ios/Pods/Pods.xcodeproj')
-          project.targets.each do |target|
-            target.build_configurations.each do |config|
-              config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-              config.build_settings['SWIFT_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-              config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-              config.build_settings['SWIFT_VERSION'] = '5.0'
-              # Remove any Swift 6 feature flags
-              flags = config.build_settings['OTHER_SWIFT_FLAGS'] || ''
-              flags = flags.gsub(/-strict-concurrency=\w+/, '')
-              config.build_settings['OTHER_SWIFT_FLAGS'] = flags
-            end
-          end
-          project.save
-          RUBY
-          echo "Patched Pods.xcodeproj"
 
       - name: Archive app
         run: |
@@ -87,16 +66,17 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            DEVELOPMENT_TEAM=FAKETEAM123
+            DEVELOPMENT_TEAM=FAKETEAM123 \
+            GCC_TREAT_WARNINGS_AS_ERRORS=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal' \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Create IPA
         run: |
-          find "$PWD/build/App.xcarchive/Products" -type d 2>/dev/null
-          find "$PWD/build/App.xcarchive" -name "*.app" -type d 2>/dev/null
-
           APP_PATH=$(find "$PWD/build/App.xcarchive" -name "*.app" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "No .app in archive. Full contents:"
+            echo "No .app in archive. Contents:"
             find "$PWD/build/App.xcarchive" -maxdepth 5
             exit 1
           fi
