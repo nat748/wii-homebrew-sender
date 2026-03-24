@@ -36,32 +36,23 @@ jobs:
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
 
-      - name: Build unsigned IPA
+      - name: Build unsigned app
         run: |
           xcodebuild \
             -workspace "${{ steps.find.outputs.workspace }}" \
             -scheme "${{ steps.find.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath ${{ runner.temp }}/app.xcarchive \
+            -derivedDataPath ${{ runner.temp }}/DerivedData \
             -destination "generic/platform=iOS" \
-            archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_ENTITLEMENTS="" \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
 
       - name: Create IPA
         run: |
-          echo "=== Archive contents ==="
-          find ${{ runner.temp }}/app.xcarchive -name "*.app" -type d
-          echo "========================"
-          APP_PATH=$(find ${{ runner.temp }}/app.xcarchive -name "*.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: No .app bundle found in archive"
-            exit 1
-          fi
+          APP_PATH=$(find ${{ runner.temp }}/DerivedData -name "*.app" -type d | head -1)
           echo "Found app at: $APP_PATH"
           mkdir -p ${{ runner.temp }}/Payload
           cp -r "$APP_PATH" "${{ runner.temp }}/Payload/"
