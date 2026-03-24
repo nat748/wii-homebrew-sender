@@ -84,7 +84,6 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -archivePath "$PWD/build/App.xcarchive" \
-            -xcconfig /tmp/fix.xcconfig \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
