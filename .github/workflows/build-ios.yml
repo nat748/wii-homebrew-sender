@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -20,27 +20,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Expo
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
       - name: Install CocoaPods
         run: cd ios && pod install
 
+      - name: Find workspace and scheme
+        id: find
+        run: |
+          WORKSPACE=$(ls ios/*.xcworkspace -d | head -1)
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c "import sys,json; print(json.load(sys.stdin)['workspace']['schemes'][0])")
+          echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
+          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+
       - name: Build unsigned IPA
         run: |
-          cd ios
           xcodebuild \
-            -workspace wiihomebrewsender.xcworkspace \
-            -scheme wiihomebrewsender \
+            -workspace "${{ steps.find.outputs.workspace }}" \
+            -scheme "${{ steps.find.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
             -archivePath ${{ runner.temp }}/app.xcarchive \
+            -destination "generic/platform=iOS" \
             archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
