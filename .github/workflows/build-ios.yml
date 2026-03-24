@@ -26,26 +26,18 @@ jobs:
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
+      - name: Install CocoaPods
+        run: cd ios && pod install
+
       - name: Discover project
         id: find
         run: |
-          echo "=== ios directory contents ==="
-          ls -la ios/
-          echo "=== xcworkspaces ==="
-          find ios -name "*.xcworkspace" -maxdepth 1
-          echo "=== xcodeproj ==="
-          find ios -name "*.xcodeproj" -maxdepth 1
-          echo "========================"
-
+          ls -la ios/*.xcworkspace
           WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
-          # Derive scheme name from workspace filename (strip path and extension)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
           echo "Using workspace=$WORKSPACE scheme=$SCHEME"
-
-      - name: Install CocoaPods
-        run: cd ios && pod install
 
       - name: Archive app
         run: |
@@ -62,18 +54,17 @@ jobs:
 
       - name: Create IPA
         run: |
-          find "$PWD/build/App.xcarchive/Products" -type d 2>/dev/null || echo "No Products"
-          find "$PWD/build/App.xcarchive" -name "*.app" -type d 2>/dev/null || echo "No .app"
+          find "$PWD/build/App.xcarchive/Products" -type d 2>/dev/null
+          find "$PWD/build/App.xcarchive" -name "*.app" -type d 2>/dev/null
 
           APP_PATH=$(find "$PWD/build/App.xcarchive" -name "*.app" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found. Full archive:"
+            echo "No .app in archive. Full contents:"
             find "$PWD/build/App.xcarchive" -maxdepth 5
             exit 1
           fi
-          echo "Found app: $APP_PATH"
+          echo "Found: $APP_PATH"
 
-          # Fakesign for LiveContainer
           SCHEME="${{ steps.find.outputs.scheme }}"
           [ -f "$APP_PATH/$SCHEME" ] && ldid -S "$APP_PATH/$SCHEME" && echo "Fakesigned"
           find "$APP_PATH/Frameworks" -name "*.dylib" -exec ldid -S {} \; 2>/dev/null || true
