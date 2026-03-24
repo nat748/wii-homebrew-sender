@@ -29,15 +29,11 @@ jobs:
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
-      - name: Patch Podfile for Swift concurrency fix
+      - name: Patch Podfile for warnings
         run: |
-          # Use OTHER_SWIFT_FLAGS to directly pass compiler flag that disables strict concurrency
-          # This is more reliable than SWIFT_STRICT_CONCURRENCY build setting
           sed -i '' 's/post_install do |installer|/post_install do |installer|\
             installer.pods_project.targets.each do |target|\
               target.build_configurations.each do |config|\
-                config.build_settings["OTHER_SWIFT_FLAGS"] = "$(inherited) -Xfrontend -strict-concurrency=minimal"\
-                config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"\
                 config.build_settings["SWIFT_TREAT_WARNINGS_AS_ERRORS"] = "NO"\
                 config.build_settings["GCC_TREAT_WARNINGS_AS_ERRORS"] = "NO"\
               end\
@@ -45,6 +41,25 @@ jobs:
 
       - name: Install CocoaPods
         run: cd ios && pod install
+
+      - name: Patch ExpoModulesCore xcconfig to disable strict concurrency
+        run: |
+          # Directly patch the xcconfig files that control ExpoModulesCore compilation
+          for xcconfig in ios/Pods/Target\ Support\ Files/ExpoModulesCore/*.xcconfig; do
+            echo "" >> "$xcconfig"
+            echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$xcconfig"
+            echo 'OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -strict-concurrency=minimal' >> "$xcconfig"
+            echo "Patched: $xcconfig"
+          done
+          # Also patch any other Expo pods that might have issues
+          for dir in ios/Pods/Target\ Support\ Files/Expo*; do
+            for xcconfig in "$dir"/*.xcconfig; do
+              echo "" >> "$xcconfig"
+              echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$xcconfig"
+              echo 'OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -strict-concurrency=minimal' >> "$xcconfig"
+            done
+          done
+          echo "All xcconfig files patched"
 
       - name: Discover project
         id: find
@@ -69,7 +84,6 @@ jobs:
             DEVELOPMENT_TEAM=FAKETEAM123 \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal' \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Create IPA
