@@ -54,8 +54,17 @@ jobs:
 
       - name: Create IPA
         run: |
+          echo "=== Archive contents ==="
+          find ${{ runner.temp }}/app.xcarchive -name "*.app" -type d
+          echo "========================"
+          APP_PATH=$(find ${{ runner.temp }}/app.xcarchive -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app bundle found in archive"
+            exit 1
+          fi
+          echo "Found app at: $APP_PATH"
           mkdir -p ${{ runner.temp }}/Payload
-          cp -r "${{ runner.temp }}/app.xcarchive/Products/Applications/"*.app "${{ runner.temp }}/Payload/"
+          cp -r "$APP_PATH" "${{ runner.temp }}/Payload/"
           cd ${{ runner.temp }}
           zip -r WiiHomebrewSender.ipa Payload
 
