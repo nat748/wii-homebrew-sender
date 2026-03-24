@@ -40,6 +40,8 @@ jobs:
             "$EMC/ios/Core/Views/SwiftUI/SwiftUIHostingView.swift"
           sed -i '' 's/: @MainActor ExpoSwiftUI.ViewWrapper/: ExpoSwiftUI.ViewWrapper/g' \
             "$EMC/ios/Core/Views/SwiftUI/SwiftUIVirtualView.swift"
+          sed -i '' 's/: @MainActor AnyArgument/: AnyArgument/g' \
+            "$EMC/ios/Core/Views/ViewDefinition.swift"
           echo "Source: removed @MainActor conformance attributes"
 
       - name: Prebuild iOS project
