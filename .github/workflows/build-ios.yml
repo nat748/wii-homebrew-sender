@@ -5,6 +5,9 @@ on:
     branches: [master, main]
   workflow_dispatch:
 
+env:
+  DERIVED_DATA: /tmp/WiiDerivedData
+
 jobs:
   build-ios:
     runs-on: macos-15
@@ -43,24 +46,39 @@ jobs:
             -scheme "${{ steps.find.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath ${{ runner.temp }}/DerivedData \
+            -derivedDataPath "$DERIVED_DATA" \
             -destination "generic/platform=iOS" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CONFIGURATION_BUILD_DIR="$DERIVED_DATA/Build"
 
       - name: Create IPA
         run: |
-          APP_PATH=$(find ${{ runner.temp }}/DerivedData -name "*.app" -type d | head -1)
-          echo "Found app at: $APP_PATH"
-          mkdir -p ${{ runner.temp }}/Payload
-          cp -r "$APP_PATH" "${{ runner.temp }}/Payload/"
-          cd ${{ runner.temp }}
+          echo "=== Listing all .app bundles ==="
+          find "$DERIVED_DATA" -name "*.app" -type d
+          echo "=== Listing Build dir ==="
+          ls -la "$DERIVED_DATA/Build/" || true
+          echo "========================"
+          APP_PATH=$(find "$DERIVED_DATA" -name "*.app" -type d -not -path "*/Intermediates.noindex/*" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Falling back to any .app"
+            APP_PATH=$(find "$DERIVED_DATA" -name "*.app" -type d | head -1)
+          fi
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app bundle found anywhere in DerivedData"
+            find "$DERIVED_DATA" -type d -maxdepth 5
+            exit 1
+          fi
+          echo "Using app at: $APP_PATH"
+          mkdir -p /tmp/Payload
+          cp -r "$APP_PATH" /tmp/Payload/
+          cd /tmp
           zip -r WiiHomebrewSender.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: WiiHomebrewSender-iOS
-          path: ${{ runner.temp }}/WiiHomebrewSender.ipa
+          path: /tmp/WiiHomebrewSender.ipa
