@@ -26,16 +26,23 @@ jobs:
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
-      - name: Get app name
+      - name: Discover project
         id: find
         run: |
-          # Get the actual app name from app.json
-          APP_NAME=$(node -e "console.log(require('./app.json').expo.name.replace(/\s+/g, ''))")
-          echo "name=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "App name: $APP_NAME"
-          echo "Workspace: ios/$APP_NAME.xcworkspace"
-          # Verify it exists
-          ls -la "ios/$APP_NAME.xcworkspace"
+          echo "=== ios directory contents ==="
+          ls -la ios/
+          echo "=== xcworkspaces ==="
+          find ios -name "*.xcworkspace" -maxdepth 1
+          echo "=== xcodeproj ==="
+          find ios -name "*.xcodeproj" -maxdepth 1
+          echo "========================"
+
+          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
+          # Derive scheme name from workspace filename (strip path and extension)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
+          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+          echo "Using workspace=$WORKSPACE scheme=$SCHEME"
 
       - name: Install CocoaPods
         run: cd ios && pod install
@@ -43,8 +50,8 @@ jobs:
       - name: Archive app
         run: |
           xcodebuild archive \
-            -workspace "ios/${{ steps.find.outputs.name }}.xcworkspace" \
-            -scheme "${{ steps.find.outputs.name }}" \
+            -workspace "${{ steps.find.outputs.workspace }}" \
+            -scheme "${{ steps.find.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
             -archivePath "$PWD/build/App.xcarchive" \
@@ -55,16 +62,11 @@ jobs:
 
       - name: Create IPA
         run: |
-          echo "=== Archive Products ==="
-          find "$PWD/build/App.xcarchive/Products" -type d 2>/dev/null
-          echo "=== .app bundles ==="
-          find "$PWD/build/App.xcarchive" -name "*.app" -type d 2>/dev/null
+          find "$PWD/build/App.xcarchive/Products" -type d 2>/dev/null || echo "No Products"
+          find "$PWD/build/App.xcarchive" -name "*.app" -type d 2>/dev/null || echo "No .app"
 
-          APP_PATH="$PWD/build/App.xcarchive/Products/Applications/${{ steps.find.outputs.name }}.app"
-          if [ ! -d "$APP_PATH" ]; then
-            APP_PATH=$(find "$PWD/build/App.xcarchive" -name "*.app" -type d | head -1)
-          fi
-          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+          APP_PATH=$(find "$PWD/build/App.xcarchive" -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
             echo "ERROR: No .app found. Full archive:"
             find "$PWD/build/App.xcarchive" -maxdepth 5
             exit 1
@@ -72,11 +74,10 @@ jobs:
           echo "Found app: $APP_PATH"
 
           # Fakesign for LiveContainer
-          BINARY="$APP_PATH/${{ steps.find.outputs.name }}"
-          [ -f "$BINARY" ] && ldid -S "$BINARY" && echo "Fakesigned main binary"
+          SCHEME="${{ steps.find.outputs.scheme }}"
+          [ -f "$APP_PATH/$SCHEME" ] && ldid -S "$APP_PATH/$SCHEME" && echo "Fakesigned"
           find "$APP_PATH/Frameworks" -name "*.dylib" -exec ldid -S {} \; 2>/dev/null || true
 
-          # Package as IPA
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           zip -r WiiHomebrewSender.ipa Payload
