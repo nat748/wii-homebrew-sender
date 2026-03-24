@@ -54,12 +54,19 @@ jobs:
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
           echo "Using workspace=$WORKSPACE scheme=$SCHEME"
 
-      - name: Create xcconfig to fix Swift concurrency
+      - name: Force Swift 5 language mode on all pods
         run: |
+          # Directly modify every pbxproj in Pods to use Swift 5 mode
+          find ios/Pods -name "*.pbxproj" -exec sed -i '' \
+            -e 's/SWIFT_STRICT_CONCURRENCY = complete/SWIFT_STRICT_CONCURRENCY = minimal/g' \
+            -e 's/SWIFT_STRICT_CONCURRENCY = targeted/SWIFT_STRICT_CONCURRENCY = minimal/g' \
+            {} +
+          # Also patch via xcconfig
           cat > /tmp/fix.xcconfig << 'EOF'
           SWIFT_STRICT_CONCURRENCY = minimal
           SWIFT_TREAT_WARNINGS_AS_ERRORS = NO
           GCC_TREAT_WARNINGS_AS_ERRORS = NO
+          OTHER_SWIFT_FLAGS = $(inherited) -strict-concurrency=minimal
           OTHER_CFLAGS = $(inherited) -Wno-error -Wno-deprecated-declarations
           EOF
 
