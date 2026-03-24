@@ -42,24 +42,29 @@ jobs:
       - name: Install CocoaPods
         run: cd ios && pod install
 
-      - name: Patch ExpoModulesCore xcconfig to disable strict concurrency
+      - name: Patch expo-modules-core for Xcode 16 compatibility
         run: |
-          # Directly patch the xcconfig files that control ExpoModulesCore compilation
+          EMC="node_modules/expo-modules-core"
+
+          # 1. Remove @MainActor conformance attribute (Swift 6 only syntax)
+          # SwiftUIHostingView.swift line ~45
+          sed -i '' 's/@MainActor AnyExpoSwiftUIHostingView/AnyExpoSwiftUIHostingView/g' \
+            "$EMC/ios/Core/Views/SwiftUI/SwiftUIHostingView.swift"
+
+          # SwiftUIVirtualView.swift line ~196
+          sed -i '' 's/: @MainActor ExpoSwiftUI.ViewWrapper/: ExpoSwiftUI.ViewWrapper/g' \
+            "$EMC/ios/Core/Views/SwiftUI/SwiftUIVirtualView.swift"
+
+          echo "Patched Swift 6 conformance syntax"
+
+          # 2. Force Swift 5 language mode on ExpoModulesCore pod
+          # This makes concurrency issues warnings instead of errors
           for xcconfig in ios/Pods/Target\ Support\ Files/ExpoModulesCore/*.xcconfig; do
             echo "" >> "$xcconfig"
+            echo "SWIFT_VERSION = 5.0" >> "$xcconfig"
             echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$xcconfig"
-            echo 'OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -strict-concurrency=minimal' >> "$xcconfig"
             echo "Patched: $xcconfig"
           done
-          # Also patch any other Expo pods that might have issues
-          for dir in ios/Pods/Target\ Support\ Files/Expo*; do
-            for xcconfig in "$dir"/*.xcconfig; do
-              echo "" >> "$xcconfig"
-              echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$xcconfig"
-              echo 'OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -strict-concurrency=minimal' >> "$xcconfig"
-            done
-          done
-          echo "All xcconfig files patched"
 
       - name: Discover project
         id: find
