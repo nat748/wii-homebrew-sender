@@ -11,8 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 16.1
-        run: sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
+      - name: List available Xcode versions and select latest
+        run: |
+          ls /Applications/Xcode*.app 2>/dev/null || true
+          # Use default Xcode (latest on macos-15)
+          xcodebuild -version
+          xcodebuild -showsdks 2>&1 | grep iphoneos
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
