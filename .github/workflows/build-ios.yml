@@ -38,40 +38,47 @@ jobs:
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
           echo "Found: workspace=$WORKSPACE scheme=$SCHEME"
 
-      - name: Archive unsigned app
+      - name: Build unsigned app
         run: |
-          xcodebuild archive \
+          xcodebuild build \
             -workspace "${{ steps.find.outputs.workspace }}" \
             -scheme "${{ steps.find.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath "$PWD/build/App.xcarchive" \
+            -destination "generic/platform=iOS" \
+            SYMROOT="$PWD/build" \
+            OBJROOT="$PWD/build/obj" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            SKIP_INSTALL=NO
 
       - name: Create IPA
         run: |
-          # Show what's in the archive
-          ls -la "$PWD/build/App.xcarchive/Products/Applications/" || echo "Applications dir not found"
-          find "$PWD/build/App.xcarchive/Products" -type d -name "*.app" || echo "No .app found in Products"
-          find "$PWD/build/App.xcarchive" -type d -name "*.app" | head -5
+          echo "=== Build output ==="
+          ls -la "$PWD/build/Release-iphoneos/" || true
+          find "$PWD/build" -name "*.app" -type d
+          echo "===================="
 
-          # Find the .app bundle
-          APP_PATH=$(find "$PWD/build/App.xcarchive" -type d -name "*.app" | head -1)
+          APP_PATH="$PWD/build/Release-iphoneos/${{ steps.find.outputs.scheme }}.app"
+          if [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find "$PWD/build" -name "*.app" -type d | head -1)
+          fi
+
           echo "Using app: $APP_PATH"
+          ls -la "$APP_PATH"
 
-          # Create Payload and copy .app
-          mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
-
-          # Fakesign with ldid for LiveContainer compatibility
-          APP_NAME=$(basename "$APP_PATH" .app)
-          ldid -S "Payload/$(basename $APP_PATH)/$APP_NAME" || echo "ldid fakesign skipped"
+          # Fakesign with ldid for LiveContainer
+          BINARY="$APP_PATH/${{ steps.find.outputs.scheme }}"
+          if [ -f "$BINARY" ]; then
+            ldid -S "$BINARY" || echo "ldid warning (non-fatal)"
+          fi
 
           # Package as IPA
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
           zip -r WiiHomebrewSender.ipa Payload
-          echo "IPA created: $(ls -lh WiiHomebrewSender.ipa)"
+          echo "IPA size: $(du -h WiiHomebrewSender.ipa | cut -f1)"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
