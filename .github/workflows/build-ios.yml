@@ -52,6 +52,8 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             DEVELOPMENT_TEAM=FAKETEAM123 \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            SWIFT_STRICT_CONCURRENCY=minimal \
             OTHER_CFLAGS='$(inherited) -Wno-error -Wno-deprecated-declarations'
 
       - name: Create IPA
