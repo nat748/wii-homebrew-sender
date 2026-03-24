@@ -54,6 +54,15 @@ jobs:
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
           echo "Using workspace=$WORKSPACE scheme=$SCHEME"
 
+      - name: Create xcconfig to fix Swift concurrency
+        run: |
+          cat > /tmp/fix.xcconfig << 'EOF'
+          SWIFT_STRICT_CONCURRENCY = minimal
+          SWIFT_TREAT_WARNINGS_AS_ERRORS = NO
+          GCC_TREAT_WARNINGS_AS_ERRORS = NO
+          OTHER_CFLAGS = $(inherited) -Wno-error -Wno-deprecated-declarations
+          EOF
+
       - name: Archive app
         run: |
           xcodebuild archive \
@@ -62,14 +71,11 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -archivePath "$PWD/build/App.xcarchive" \
+            -xcconfig /tmp/fix.xcconfig \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            DEVELOPMENT_TEAM=FAKETEAM123 \
-            GCC_TREAT_WARNINGS_AS_ERRORS=NO \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            SWIFT_STRICT_CONCURRENCY=minimal \
-            OTHER_CFLAGS='$(inherited) -Wno-error -Wno-deprecated-declarations'
+            DEVELOPMENT_TEAM=FAKETEAM123
 
       - name: Create IPA
         run: |
