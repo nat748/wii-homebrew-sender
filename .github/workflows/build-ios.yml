@@ -26,6 +26,21 @@ jobs:
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
+      - name: Patch Podfile for Xcode 16 compatibility
+        run: |
+          cat >> ios/Podfile << 'PATCH'
+
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+                config.build_settings['SWIFT_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+                config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+              end
+            end
+          end
+          PATCH
+
       - name: Install CocoaPods
         run: cd ios && pod install
 
