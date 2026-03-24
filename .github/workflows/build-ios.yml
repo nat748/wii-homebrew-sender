@@ -26,6 +26,22 @@ jobs:
       - name: Install ldid for fakesigning
         run: brew install ldid
 
+      - name: Patch expo-modules-core for Swift 5 compatibility
+        run: |
+          EMC="node_modules/expo-modules-core"
+
+          # 1. Downgrade podspec from Swift 6.0 to 5.0
+          # In Swift 5 mode, concurrency issues are warnings not errors
+          sed -i '' "s/s.swift_version  = '6.0'/s.swift_version  = '5.0'/" "$EMC/ExpoModulesCore.podspec"
+          echo "Podspec: forced Swift 5.0"
+
+          # 2. Remove @MainActor conformance attributes (Swift 6 only syntax)
+          sed -i '' 's/@MainActor AnyExpoSwiftUIHostingView/AnyExpoSwiftUIHostingView/g' \
+            "$EMC/ios/Core/Views/SwiftUI/SwiftUIHostingView.swift"
+          sed -i '' 's/: @MainActor ExpoSwiftUI.ViewWrapper/: ExpoSwiftUI.ViewWrapper/g' \
+            "$EMC/ios/Core/Views/SwiftUI/SwiftUIVirtualView.swift"
+          echo "Source: removed @MainActor conformance attributes"
+
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
@@ -41,30 +57,6 @@ jobs:
 
       - name: Install CocoaPods
         run: cd ios && pod install
-
-      - name: Patch expo-modules-core for Xcode 16 compatibility
-        run: |
-          EMC="node_modules/expo-modules-core"
-
-          # 1. Remove @MainActor conformance attribute (Swift 6 only syntax)
-          # SwiftUIHostingView.swift line ~45
-          sed -i '' 's/@MainActor AnyExpoSwiftUIHostingView/AnyExpoSwiftUIHostingView/g' \
-            "$EMC/ios/Core/Views/SwiftUI/SwiftUIHostingView.swift"
-
-          # SwiftUIVirtualView.swift line ~196
-          sed -i '' 's/: @MainActor ExpoSwiftUI.ViewWrapper/: ExpoSwiftUI.ViewWrapper/g' \
-            "$EMC/ios/Core/Views/SwiftUI/SwiftUIVirtualView.swift"
-
-          echo "Patched Swift 6 conformance syntax"
-
-          # 2. Force Swift 5 language mode on ExpoModulesCore pod
-          # This makes concurrency issues warnings instead of errors
-          for xcconfig in ios/Pods/Target\ Support\ Files/ExpoModulesCore/*.xcconfig; do
-            echo "" >> "$xcconfig"
-            echo "SWIFT_VERSION = 5.0" >> "$xcconfig"
-            echo "SWIFT_STRICT_CONCURRENCY = minimal" >> "$xcconfig"
-            echo "Patched: $xcconfig"
-          done
 
       - name: Discover project
         id: find
